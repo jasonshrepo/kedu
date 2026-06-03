@@ -19,6 +19,10 @@ except ImportError:  # pragma: no cover
     import state  # type: ignore
 
 
+# Keep in sync with pyproject.toml [project].version
+KEDU_VERSION = "0.1.0"
+
+
 def _print_json(value) -> None:
     print(json.dumps(value, ensure_ascii=False, indent=2))
 
@@ -201,6 +205,7 @@ def cmd_state(args: argparse.Namespace) -> int:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="kedu")
+    parser.add_argument("--version", action="version", version=f"kedu {KEDU_VERSION}")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     init_parser = subparsers.add_parser("init", help="Enable Kedu for a host; project-local by default")

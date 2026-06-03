@@ -24,16 +24,49 @@ where the last one left off, instead of relying on memory that's locked inside o
 
 ## Contents
 
+- [Try it in 5 minutes](#try-it-in-5-minutes)
 - [Why Kedu](#why-kedu)
 - [The idea](#the-idea)
 - [What Kedu does](#what-kedu-does)
 - [What Kedu is not](#what-kedu-is-not)
 - [Current status](#current-status)
+- [Known limits](#known-limits)
 - [Try it from source](#try-it-from-source)
 - [Using Kedu](#using-kedu)
 - [Design principles](#design-principles)
 - [Solution architecture](#solution-architecture)
 - [License](#license)
+
+## Try it in 5 minutes
+
+The whole loop — install, wire it into an agent, save a record, and have the *next* agent
+read it back:
+
+```bash
+# 1. Install from source (adds `kedu` to ~/.local/bin, engine to ~/.kedu/kedu)
+git clone https://github.com/jasonshrepo/kedu.git
+cd kedu && bash install.sh
+
+# 2. Wire it into a real project (pick your host: claude | codex | kiro | cursor)
+cd /path/to/your/project
+kedu init --host claude
+```
+
+Then, **inside the agent**, take a note and hand it off:
+
+```text
+/kedu log    what we decided and what should happen next
+```
+
+Open a *different* agent in the same project later, and ask it to pick up where you left off:
+
+```text
+/kedu search    the last decision
+```
+
+That's it — the record is a plain file in `.kedu/` and `~/.kedu` that any agent can read.
+See [Using Kedu](#using-kedu) for the per-host command (`/kedu`, or `$kedu` in Codex) and
+[Try it from source](#try-it-from-source) for install details.
 
 ## Why Kedu
 
@@ -99,7 +132,7 @@ edit or redact anything.
 Kedu is a **source-first developer preview**. You install it from this repository; there is
 no public package-manager release yet.
 
-What works today, and is covered by the test suite (`uv run pytest`, 79 tests):
+What works today, and is covered by the test suite (`uv run pytest`):
 
 - Capturing session records (`kedu log`).
 - Finding past records (`kedu search`, `kedu show`).
@@ -108,6 +141,22 @@ What works today, and is covered by the test suite (`uv run pytest`, 79 tests):
 - Removing secrets from records, including after the fact (`kedu redact`).
 - Wiring Kedu into your agent of choice (`kedu init --host …`) and removing it cleanly
   (`kedu uninstall`) without ever deleting your records.
+
+## Known limits
+
+Kedu is deliberately small, and this is an early preview. Be aware that:
+
+- **Source-first install only.** You install from this repo with `bash install.sh`. There is
+  no `pip install kedu`, `brew install kedu`, or `npm install -g kedu` yet.
+- **Deterministic retrieval, not semantic search.** Search matches exact keywords, tags, and
+  regex — there are no embeddings, vector similarity, or relevance ranking. The model judges
+  relevance after Kedu returns candidates.
+- **Intentional capture only.** Nothing is logged silently in the background. You (or the
+  agent, on your instruction) decide what gets recorded; Kedu does not auto-ingest
+  transcripts, prompts, or tool calls.
+- **macOS and Linux only.** Windows is not supported or tested.
+- **Developer preview.** Record formats, the CLI surface, and host wiring may still change
+  between versions; expect rough edges and please file issues.
 
 ## Try it from source
 
