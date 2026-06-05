@@ -18,6 +18,22 @@ def test_all_scope_searches_multiple_projects(kedu_env):
     assert {entry["project"] for entry in results} == {"repo", "other"}
 
 
+def test_sort_order_controls_direction(kedu_env):
+    capture.log_entry(sample_entry(id="a:1", ts="2026-06-01T10:00:00+10:00"), source="manual", project="repo", cwd=kedu_env["project"])
+    capture.log_entry(sample_entry(id="b:1", ts="2026-06-03T10:00:00+10:00"), source="manual", project="repo", cwd=kedu_env["project"])
+    desc = search.search_entries(scope="current_project", project="repo", cwd=kedu_env["project"])
+    assert [entry["id"] for entry in desc] == ["b:1", "a:1"]
+    asc = search.search_entries(scope="current_project", project="repo", cwd=kedu_env["project"], order="asc")
+    assert [entry["id"] for entry in asc] == ["a:1", "b:1"]
+
+
+def test_sort_by_arbitrary_field(kedu_env):
+    capture.log_entry(sample_entry(id="a:1", title="Zeta"), source="manual", project="repo", cwd=kedu_env["project"])
+    capture.log_entry(sample_entry(id="b:1", title="Alpha"), source="manual", project="repo", cwd=kedu_env["project"])
+    results = search.search_entries(scope="current_project", project="repo", cwd=kedu_env["project"], sort="title", order="asc")
+    assert [entry["title"] for entry in results] == ["Alpha", "Zeta"]
+
+
 def test_body_scan_finds_terms_not_in_metadata(kedu_env):
     entry = sample_entry(search_terms=[], title="Unrelated", tags=[], next_steps=[], body_md="Need to fix auth_cookie_expired")
     capture.log_entry(entry, source="manual", project="repo", cwd=kedu_env["project"])

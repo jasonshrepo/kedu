@@ -354,6 +354,27 @@ def canonical_agent(agent: str | None) -> str | None:
     return resolved
 
 
+def parse_hosts(value: str | None) -> tuple[str, ...]:
+    """Expand a --host value into canonical agent names.
+
+    Accepts "all", a single host or alias, or a comma-separated list. Returns an
+    empty tuple for an empty/None value so callers can fall back to auto-detection.
+    """
+    if not value:
+        return ()
+    if value.strip().lower() == "all":
+        return KNOWN_AGENTS
+    hosts: list[str] = []
+    for part in value.split(","):
+        part = part.strip()
+        if not part:
+            continue
+        host = canonical_agent(part)
+        if host not in hosts:
+            hosts.append(host)
+    return tuple(hosts)
+
+
 def detect_current_agent(project_root: Path | None = None) -> str:
     env_agent = canonical_agent(os.environ.get("KEDU_AGENT"))
     if env_agent:

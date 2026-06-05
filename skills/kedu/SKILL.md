@@ -40,6 +40,35 @@ Do not include secrets. The CLI runs write-time redaction before persistence.
 
 Kedu search identifies candidates. The model decides relevance for the current turn.
 
+### Shaping output — never post-process with python/jq
+
+`kedu search` and `kedu show` shape their own output. Do NOT pipe results through
+`python`, `jq`, `awk`, or similar — that forces an unsafe `python *`-style permission
+grant. If you need a narrower or sorted view, use these flags instead:
+
+- `--fields title,ts,next_steps` — keep only the listed fields (works on `search` and `show`).
+- `--format table` — aligned human-readable columns; columns come from `--fields`, else `ts id title`.
+- `--format summary` — one `ts project id title` line per record.
+- `--format jsonl` — one JSON object per line.
+- `--sort <field> --order asc|desc` — sort by any field (default `ts` `desc`).
+- `--limit N`, `--since <iso>`, `--until <iso>` — narrow the result set.
+
+Examples:
+
+```bash
+# Recent records as a table
+kedu search --scope current_project --query "<terms>" --limit 10 --format table
+
+# Just the open next_steps from the latest records
+kedu search --scope current_project --query "<terms>" --limit 5 --fields title,next_steps
+
+# Hydrate one record, only the narrative + remaining work
+kedu show <id> --fields title,next_steps,body_md
+```
+
+If a shape you need is not expressible with these flags, that is a missing-flag feature
+request — not a reason to reach for an external interpreter.
+
 ## Initialize
 
 Use `kedu init --host claude` for project-local setup. Use

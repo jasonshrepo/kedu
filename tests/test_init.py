@@ -12,6 +12,62 @@ def _clear_agent_envs(monkeypatch) -> None:
         monkeypatch.delenv(var, raising=False)
 
 
+def test_parse_hosts_all_expands_to_known_agents():
+    assert init_cmd.parse_hosts("all") == init_cmd.KNOWN_AGENTS
+
+
+def test_parse_hosts_comma_list_canonicalizes_and_dedupes():
+    assert init_cmd.parse_hosts("claude, codex ,claude-code") == ("claude", "codex")
+
+
+def test_parse_hosts_empty_returns_empty_tuple_for_autodetect():
+    assert init_cmd.parse_hosts(None) == ()
+    assert init_cmd.parse_hosts("") == ()
+    assert init_cmd.parse_hosts("  ") == ()
+
+
+def test_parse_hosts_rejects_unknown_host():
+    with pytest.raises(init_cmd.AgentDetectionError, match="unsupported agent: nope"):
+        init_cmd.parse_hosts("claude,nope")
+
+
+def test_cli_init_multi_host_emits_list(kedu_env, monkeypatch, capsys):
+    from scripts import kedu
+
+    _clear_agent_envs(monkeypatch)
+    monkeypatch.chdir(kedu_env["project"])
+    assert kedu.main(["init", "--host", "claude,codex", "--json"]) == 0
+    out = json.loads(capsys.readouterr().out)
+    assert isinstance(out, list)
+    assert [result["host"] for result in out] == ["claude", "codex"]
+
+
+def test_cli_init_single_host_still_emits_object(kedu_env, monkeypatch, capsys):
+    from scripts import kedu
+
+    _clear_agent_envs(monkeypatch)
+    monkeypatch.chdir(kedu_env["project"])
+    assert kedu.main(["init", "--host", "claude", "--json"]) == 0
+    out = json.loads(capsys.readouterr().out)
+    assert isinstance(out, dict)
+    assert out["host"] == "claude"
+
+
+def test_cli_init_default_output_is_human_readable(kedu_env, monkeypatch, capsys):
+    from scripts import kedu
+
+    _clear_agent_envs(monkeypatch)
+    monkeypatch.chdir(kedu_env["project"])
+    assert kedu.main(["init", "--host", "claude,codex"]) == 0
+    out = capsys.readouterr().out
+    # Default is a human-readable summary, not JSON.
+    with pytest.raises(json.JSONDecodeError):
+        json.loads(out)
+    assert "kedu init (local)" in out
+    assert "[claude]" in out and "[codex]" in out
+    assert "Summary: 2 hosts wired (claude, codex)" in out
+
+
 def test_global_init_requires_agent_when_not_detected(kedu_env, monkeypatch):
     _clear_agent_envs(monkeypatch)
     with pytest.raises(init_cmd.AgentDetectionError, match="could not detect"):

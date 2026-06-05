@@ -27,6 +27,50 @@ def _print_json(value) -> None:
     print(json.dumps(value, ensure_ascii=False, indent=2))
 
 
+def _parse_fields(spec: str | None) -> list[str] | None:
+    if not spec:
+        return None
+    fields = [field.strip() for field in spec.split(",") if field.strip()]
+    return fields or None
+
+
+def _project_entry(entry: dict, fields: list[str] | None) -> dict:
+    if not fields:
+        return entry
+    return {field: entry.get(field) for field in fields}
+
+
+def _cell(value) -> str:
+    if isinstance(value, (list, tuple)):
+        return "; ".join(_cell(item) for item in value)
+    if isinstance(value, dict):
+        return json.dumps(value, ensure_ascii=False, sort_keys=True)
+    text = "" if value is None else str(value)
+    return " ".join(text.split())
+
+
+def _print_table(rows: list[dict], columns: list[str]) -> None:
+    widths = {column: len(column) for column in columns}
+    rendered: list[dict[str, str]] = []
+    for row in rows:
+        cells = {column: _cell(row.get(column)) for column in columns}
+        for column in columns:
+            widths[column] = max(widths[column], len(cells[column]))
+        rendered.append(cells)
+
+    def _line(values: dict[str, str]) -> str:
+        # Do not pad the final column, to avoid trailing whitespace bloat.
+        return "  ".join(
+            values[column].ljust(widths[column]) if i < len(columns) - 1 else values[column]
+            for i, column in enumerate(columns)
+        )
+
+    print(_line({column: column for column in columns}))
+    print(_line({column: "-" * widths[column] for column in columns}))
+    for cells in rendered:
+        print(_line(cells))
+
+
 def cmd_log(args: argparse.Namespace) -> int:
     try:
         raw = capture.read_entry(args.body)
@@ -44,6 +88,30 @@ def cmd_log(args: argparse.Namespace) -> int:
         return 1
 
 
+def _print_init_result(results: list[dict], *, mode: str) -> None:
+    print(f"kedu init ({mode})")
+    for result in results:
+        print()
+        project = result.get("project")
+        header = f"[{result['host']}]"
+        print(f"{header} project: {project}" if project else header)
+        if result.get("project_root"):
+            print(f"  root: {result['project_root']}")
+        print(f"  home: {result['kedu_home']}")
+        files = result.get("files") or []
+        if files:
+            print("  Files:")
+            for path in files:
+                print(f"    {path}")
+        for message in result.get("messages") or []:
+            print(f"  note: {message}")
+    print()
+    hosts = ", ".join(result["host"] for result in results)
+    total_files = sum(len(result.get("files") or []) for result in results)
+    plural = "host" if len(results) == 1 else "hosts"
+    print(f"Summary: {len(results)} {plural} wired ({hosts}), {total_files} files written")
+
+
 def cmd_init(args: argparse.Namespace) -> int:
     try:
         mode = args.place or ("global" if args.global_init else "local")
@@ -51,12 +119,16 @@ def cmd_init(args: argparse.Namespace) -> int:
             raise ValueError("--global conflicts with --local/--place local")
         if args.local_init and args.place == "global":
             raise ValueError("--local conflicts with --place global")
-        result = init_cmd.init_kedu(
-            mode=mode,
-            project=args.project,
-            agent=args.host,
-        )
-        _print_json(result.as_dict())
+        # Empty host -> single auto-detected init; "all"/comma list -> one init per host.
+        hosts: tuple[str | None, ...] = init_cmd.parse_hosts(args.host) or (None,)
+        results = [
+            init_cmd.init_kedu(mode=mode, project=args.project, agent=host).as_dict()
+            for host in hosts
+        ]
+        if args.json:
+            _print_json(results[0] if len(results) == 1 else results)
+        else:
+            _print_init_result(results, mode=mode)
         return 0
     except Exception as exc:
         print(f"kedu init: {exc}", file=sys.stderr)
@@ -77,15 +149,20 @@ def cmd_search(args: argparse.Namespace) -> int:
             limit=args.limit,
             ids_only=args.ids_only,
             regex=args.regex,
+            sort=args.sort,
+            order=args.order,
         )
-        if args.format == "jsonl":
+        fields = _parse_fields(args.fields)
+        if args.format == "table":
+            _print_table(results, fields or ["ts", "id", "title"])
+        elif args.format == "jsonl":
             for entry in results:
-                print(json.dumps(entry, ensure_ascii=False, sort_keys=True))
+                print(json.dumps(_project_entry(entry, fields), ensure_ascii=False, sort_keys=True))
         elif args.format == "summary":
             for entry in results:
                 print(f"{entry.get('ts', '')} {entry.get('project', '')} {entry.get('id', '')} {entry.get('title', '')}")
         else:
-            _print_json(results)
+            _print_json([_project_entry(entry, fields) for entry in results] if fields else results)
         return 0
     except Exception as exc:
         print(f"kedu search: {exc}", file=sys.stderr)
@@ -97,7 +174,7 @@ def cmd_show(args: argparse.Namespace) -> int:
     if entry is None:
         print(f"kedu show: record not found: {args.id}", file=sys.stderr)
         return 1
-    _print_json(entry)
+    _print_json(_project_entry(entry, _parse_fields(args.fields)))
     return 0
 
 
@@ -209,11 +286,12 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     init_parser = subparsers.add_parser("init", help="Enable Kedu for a host; project-local by default")
-    init_parser.add_argument("--host", choices=init_cmd.KNOWN_AGENTS, help="Host agent to wire: claude, kiro, codex, or cursor")
+    init_parser.add_argument("--host", help="Host(s) to wire: claude, kiro, codex, cursor; 'all'; or a comma list, e.g. claude,codex")
     init_parser.add_argument("--global", dest="global_init", action="store_true", help="Install user-level host defaults instead of project-local files")
     init_parser.add_argument("--local", dest="local_init", action="store_true", help="Explicitly install project-local files")
     init_parser.add_argument("--place", choices=("local", "global"), help="Alias for selecting local or global init")
     init_parser.add_argument("--project", help="Project slug override")
+    init_parser.add_argument("--json", action="store_true", help="Emit machine-readable JSON instead of the human-readable summary")
     init_parser.set_defaults(func=cmd_init)
 
     log_parser = subparsers.add_parser("log", help="Capture a structured Kedu record")
@@ -236,12 +314,16 @@ def build_parser() -> argparse.ArgumentParser:
     search_parser.add_argument("--limit", type=int)
     search_parser.add_argument("--ids-only", action="store_true")
     search_parser.add_argument("--regex", action="store_true")
-    search_parser.add_argument("--format", choices=("json", "jsonl", "summary"), default="json")
+    search_parser.add_argument("--fields", help="Comma-separated fields to keep, e.g. title,ts,next_steps")
+    search_parser.add_argument("--sort", default="ts", help="Field to sort by (default: ts)")
+    search_parser.add_argument("--order", choices=("asc", "desc"), default="desc", help="Sort order (default: desc)")
+    search_parser.add_argument("--format", choices=("json", "jsonl", "summary", "table"), default="json")
     search_parser.set_defaults(func=cmd_search)
 
     show_parser = subparsers.add_parser("show", help="Hydrate one Kedu record by id")
     show_parser.add_argument("id")
     show_parser.add_argument("--project")
+    show_parser.add_argument("--fields", help="Comma-separated fields to keep, e.g. title,ts,next_steps")
     show_parser.set_defaults(func=cmd_show)
 
     redact_parser = subparsers.add_parser("redact", help="Retroactively scrub a literal value")

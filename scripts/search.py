@@ -82,6 +82,8 @@ def search_entries(
     limit: int | None = None,
     ids_only: bool = False,
     regex: bool = False,
+    sort: str = "ts",
+    order: str = "desc",
     log: bool = True,
 ) -> list[dict[str, Any]]:
     projects = _resolve_scope(scope, project, cwd)
@@ -93,7 +95,8 @@ def search_entries(
 
     results: list[dict[str, Any]] = []
     seen: set[str] = set()
-    for entry in sorted(entries, key=lambda item: str(item.get("ts", "")), reverse=True):
+    reverse = order != "asc"
+    for entry in sorted(entries, key=lambda item: str(item.get(sort, "")), reverse=reverse):
         entry_id = str(entry.get("id", ""))
         if entry_id in seen:
             continue
