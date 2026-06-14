@@ -4,6 +4,26 @@ All notable changes to Kedu are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/), and Kedu aims to follow
 [Semantic Versioning](https://semver.org/).
 
+## [0.3.1] - 2026-06-14
+
+Retrieval is now explicitly two-phase, and `kedu show` guides you back on track when handed
+a malformed id. `kedu search` identifies candidate records and prints `{session-uuid}:{seq}`
+ids; `kedu show` hydrates one record by that exact id. A bare UUID (the `:N` suffix stripped)
+denotes a whole session, not a single record, so it can't hydrate — previously this returned
+a bare `record not found`.
+
+### Changed
+- **`kedu show` fails helpfully on a malformed id.** A bare UUID (no `:N`) now returns
+  `record not found` with a hint to add the `:N` suffix (e.g. `<uuid>:1`); a well-formed but
+  missing `<uuid>:N` returns the generic "run `kedu search`" hint. Exit code is unchanged
+  (1). The success path is unchanged.
+- **Documented the two-phase retrieval model** (search = candidate identification, show =
+  hydrate by exact `<uuid>:N`) across both READMEs, the `kedu-search` skill, and the embedded
+  agent-init copies, so installed hosts carry the guidance.
+
+### Added
+- Test coverage for the bare-UUID `show` error message.
+
 ## [0.3.0] - 2026-06-11
 
 Project names are now case-insensitive: every project name is normalized to one canonical

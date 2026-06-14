@@ -21,7 +21,7 @@ except ImportError:  # pragma: no cover
 
 
 # Keep in sync with pyproject.toml [project].version
-KEDU_VERSION = "0.3.0"
+KEDU_VERSION = "0.3.1"
 
 
 def _print_json(value) -> None:
