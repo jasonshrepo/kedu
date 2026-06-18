@@ -4,6 +4,7 @@
 
 # Kedu · 刻牍
 
+## Kedu · 刻牍 正式更名为 QiJu（起居）， 地址在[Github New Repo](https://github.com/jasonshrepo/qiju)
 [English](README.md) | **中文**
 
 **本地优先、无损的 AI 编程 agent 会话记录层。**
