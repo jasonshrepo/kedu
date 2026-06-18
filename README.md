@@ -3,7 +3,7 @@
 </div>
 
 # Kedu · 刻牍
-
+## Kedu · 刻牍 is officially moved to QiJu(起居）at [New Repo](https://github.com/jasonshrepo/qiju)
 **English** | [中文](README.zh.md)
 
 **Local-first, lossless session record layer for AI coding agents.**
